@@ -1,0 +1,10 @@
+[
+  {
+    "InternalName": "WhereIsMyHead",
+    "Repository": "bloooowfish/Where-Is-My-Head-Plugin",
+    "ManifestPath": "WhereIsMyHead/WhereIsMyHead.json",
+    "ProjectPath": "WhereIsMyHead/WhereIsMyHead.csproj",
+    "AssetName": "WhereIsMyHead-{version}.zip",
+    "HideWhenReleaseMissing": true
+  }
+]

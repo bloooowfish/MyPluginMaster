@@ -1,0 +1,39 @@
+name: Update Plugin Repository
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * *'
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build repository metadata
+        shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: .\tools\Build-MasterRepo.ps1
+
+      - name: Test repository metadata
+        shell: powershell
+        run: .\tools\tests\MasterRepo.Tests.ps1
+
+      - name: Commit changes
+        shell: powershell
+        run: |
+          git config user.name "bloooowfish"
+          git config user.email "285025450+bloooowfish@users.noreply.github.com"
+          $changes = git status --short
+          if ($changes) {
+            git add repo.json
+            git commit -m "chore: update plugin repository"
+            git push
+          }

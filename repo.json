@@ -1,0 +1,26 @@
+[
+    {
+        "Author":  "BlowFish",
+        "Name":  "Where Is My Head",
+        "InternalName":  "WhereIsMyHead",
+        "AssemblyVersion":  "0.1.0.0",
+        "TestingAssemblyVersion":  null,
+        "Description":  "It help you save on electricity bills by blocking 3D rendering.",
+        "Punchline":  "Control internal render policy from Dalamud.",
+        "ApplicableVersion":  "any",
+        "Tags":  [
+                     "rendering",
+                     "diagnostic"
+                 ],
+        "RepoUrl":  "https://github.com/bloooowfish/Where-Is-My-Head-Plugin",
+        "DalamudApiLevel":  15,
+        "TestingDalamudApiLevel":  null,
+        "IsHide":  true,
+        "IsTestingExclusive":  false,
+        "DownloadCount":  0,
+        "DownloadLinkInstall":  "https://github.com/bloooowfish/Where-Is-My-Head-Plugin/releases/download/v0.1.0.0/WhereIsMyHead-0.1.0.0.zip",
+        "DownloadLinkTesting":  null,
+        "DownloadLinkUpdate":  "https://github.com/bloooowfish/Where-Is-My-Head-Plugin/releases/download/v0.1.0.0/WhereIsMyHead-0.1.0.0.zip",
+        "LastUpdate":  "0"
+    }
+]
