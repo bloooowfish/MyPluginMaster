@@ -12,3 +12,7 @@ https://raw.githubusercontent.com/bloooowfish/MyPluginMaster/refs/heads/main/rep
 
 - Bazooka Lens
 - Where Is My Head
+
+## Maintenance
+
+After plugin releases, run `tools\Update-MasterRepo.ps1 -Commit -Push` to refresh `repo.json`.
