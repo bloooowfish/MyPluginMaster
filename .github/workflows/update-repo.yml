@@ -1,13 +1,22 @@
 name: Update Plugin Repository
+run-name: Update Plugin Repository ${{ inputs.correlation_id || github.run_id }}
 
 on:
   workflow_dispatch:
-  repository_dispatch:
-    types:
-      - plugin-release
+    inputs:
+      correlation_id:
+        description: Optional release orchestration correlation id
+        required: false
+        type: string
+  schedule:
+    - cron: '17 18 * * *'
 
 permissions:
   contents: write
+
+concurrency:
+  group: plugin-repository-update
+  cancel-in-progress: false
 
 jobs:
   update:

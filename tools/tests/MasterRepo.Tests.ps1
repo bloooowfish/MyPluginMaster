@@ -147,9 +147,13 @@ Assert-Match -Actual $readmeText -Pattern 'Update-MasterRepo\.ps1' -Message 'REA
 $workflowPath = Join-Path $repoRoot '.github\workflows\update-repo.yml'
 $workflowText = Get-Content -Raw $workflowPath
 Assert-Match -Actual $workflowText -Pattern 'workflow_dispatch' -Message 'Update workflow should be manually triggerable.'
-Assert-Match -Actual $workflowText -Pattern 'repository_dispatch' -Message 'Update workflow should be triggerable by plugin release dispatch events.'
-Assert-Match -Actual $workflowText -Pattern 'plugin-release' -Message 'Update workflow should restrict repository_dispatch to plugin release events.'
-Assert-NotMatch -Actual $workflowText -Pattern 'schedule:' -Message 'Update workflow should not run on an automatic schedule.'
-Assert-NotMatch -Actual $workflowText -Pattern 'cron:' -Message 'Update workflow should not run on an automatic schedule.'
+Assert-Match -Actual $workflowText -Pattern 'run-name: Update Plugin Repository \$\{\{ inputs\.correlation_id \|\| github\.run_id \}\}' -Message 'Update workflow should expose release-script correlation ids in the run name.'
+Assert-Match -Actual $workflowText -Pattern 'correlation_id:' -Message 'Update workflow should accept an orchestration correlation id.'
+Assert-Match -Actual $workflowText -Pattern 'schedule:' -Message 'Update workflow should have a scheduled fallback for download counts and missed local triggers.'
+Assert-Match -Actual $workflowText -Pattern 'cron:' -Message 'Update workflow should define the scheduled fallback.'
+Assert-Match -Actual $workflowText -Pattern 'concurrency:' -Message 'Update workflow should serialize repo.json commits.'
+Assert-Match -Actual $workflowText -Pattern 'plugin-repository-update' -Message 'Update workflow should use one concurrency group for repo.json updates.'
+Assert-NotMatch -Actual $workflowText -Pattern 'repository_dispatch' -Message 'Update workflow should not require cross-repository dispatch tokens.'
+Assert-NotMatch -Actual $workflowText -Pattern 'plugin-release' -Message 'Update workflow should not depend on plugin release dispatch events.'
 
 Write-Host 'Master repo tests passed.'

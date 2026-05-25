@@ -3,7 +3,7 @@
 Custom Dalamud repository for bloooowfish plugins.
 
 This repository owns the final `repo.json`. Individual plugin repositories publish release assets and version metadata only.
-Plugin release workflows notify this repository with `repository_dispatch`; the local update script is only a fallback.
+Local plugin release scripts trigger this repository's update workflow after each successful release. A scheduled fallback also refreshes metadata and download counts.
 
 ## Custom Repository URL
 
@@ -18,4 +18,4 @@ https://raw.githubusercontent.com/bloooowfish/MyPluginMaster/refs/heads/main/rep
 
 ## Maintenance
 
-After plugin releases, run `tools\Update-MasterRepo.ps1 -Commit -Push` to refresh `repo.json`.
+Use `tools\Update-MasterRepo.ps1 -Commit -Push` only when you need to refresh `repo.json` manually.
