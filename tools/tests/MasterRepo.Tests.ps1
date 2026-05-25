@@ -4,6 +4,7 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $configPath = Join-Path $repoRoot 'plugins.json'
 $repoJsonPath = Join-Path $repoRoot 'repo.json'
 $buildScriptPath = Join-Path $repoRoot 'tools\Build-MasterRepo.ps1'
+$updateScriptPath = Join-Path $repoRoot 'tools\Update-MasterRepo.ps1'
 $readmePath = Join-Path $repoRoot 'README.md'
 
 function Assert-Match {
@@ -54,7 +55,7 @@ function Assert-True {
     }
 }
 
-foreach ($path in @($configPath, $repoJsonPath, $buildScriptPath, $readmePath)) {
+foreach ($path in @($configPath, $repoJsonPath, $buildScriptPath, $updateScriptPath, $readmePath)) {
     if (-not (Test-Path $path)) {
         throw "Missing expected file: $path"
     }
@@ -64,8 +65,13 @@ $configText = Get-Content -Raw $configPath
 Assert-NotMatch -Actual $configText -Pattern '[A-Za-z]:\\' -Message 'Plugin config should not expose local absolute paths.'
 Assert-NotMatch -Actual $configText -Pattern 'https://github\.com/' -Message 'Plugin config should not store HTTPS clone remotes.'
 
-$plugins = @($configText | ConvertFrom-Json)
+$pluginJson = Get-Content -Raw $configPath | ConvertFrom-Json
+$plugins = @($pluginJson)
 Assert-True -Condition ($plugins.Count -ge 1) -Message 'Plugin config should contain at least one plugin.'
+$hasBazookaLens = @($plugins | Where-Object { [string] $_.InternalName -eq 'BazookaLens' }).Count -eq 1
+$hasWhereIsMyHead = @($plugins | Where-Object { [string] $_.InternalName -eq 'WhereIsMyHead' }).Count -eq 1
+Assert-True -Condition $hasBazookaLens -Message 'Plugin config should include BazookaLens.'
+Assert-True -Condition $hasWhereIsMyHead -Message 'Plugin config should include WhereIsMyHead.'
 
 $seen = @{}
 foreach ($plugin in $plugins) {
@@ -80,7 +86,8 @@ foreach ($plugin in $plugins) {
 
 $repoJsonText = Get-Content -Raw $repoJsonPath
 Assert-Match -Actual $repoJsonText.TrimStart() -Pattern '^\[' -Message 'Master repo.json should be a JSON array.'
-$entries = @($repoJsonText | ConvertFrom-Json)
+$repoEntriesJson = Get-Content -Raw $repoJsonPath | ConvertFrom-Json
+$entries = @($repoEntriesJson)
 Assert-True -Condition ($entries.Count -eq $plugins.Count) -Message 'repo.json should contain one entry for each configured plugin.'
 
 $entryNames = @{}
@@ -102,7 +109,21 @@ Assert-Match -Actual $buildScriptText -Pattern '\$null -eq \$releasePage' -Messa
 Assert-NotMatch -Actual $buildScriptText -Pattern 'UtcNow' -Message 'Build script should not churn LastUpdate for unreleased hidden entries.'
 Assert-NotMatch -Actual $buildScriptText -Pattern '@\(\$entries\)\s*\|\s*ConvertTo-Json' -Message 'Build script should not pipe repo entries into ConvertTo-Json.'
 
+$updateScriptText = Get-Content -Raw $updateScriptPath
+Assert-Match -Actual $updateScriptText -Pattern 'Build-MasterRepo\.ps1' -Message 'Manual update script should rebuild repo.json.'
+Assert-Match -Actual $updateScriptText -Pattern 'MasterRepo\.Tests\.ps1' -Message 'Manual update script should test repo.json.'
+Assert-Match -Actual $updateScriptText -Pattern 'Verify-RepoIdentity\.ps1' -Message 'Manual update script should verify subaccount identity before git operations.'
+Assert-Match -Actual $updateScriptText -Pattern '\[switch\]\s*\$Commit' -Message 'Manual update script should make committing explicit.'
+Assert-Match -Actual $updateScriptText -Pattern '\[switch\]\s*\$Push' -Message 'Manual update script should make pushing explicit.'
+
 $readmeText = Get-Content -Raw $readmePath
 Assert-Match -Actual $readmeText -Pattern 'raw\.githubusercontent\.com/bloooowfish/MyPluginMaster/refs/heads/main/repo\.json' -Message 'README should publish the cache-resistant master repository URL.'
+Assert-Match -Actual $readmeText -Pattern 'Update-MasterRepo\.ps1' -Message 'README should document the manual update script.'
+
+$workflowPath = Join-Path $repoRoot '.github\workflows\update-repo.yml'
+$workflowText = Get-Content -Raw $workflowPath
+Assert-Match -Actual $workflowText -Pattern 'workflow_dispatch' -Message 'Update workflow should be manually triggerable.'
+Assert-NotMatch -Actual $workflowText -Pattern 'schedule:' -Message 'Update workflow should not run on an automatic schedule.'
+Assert-NotMatch -Actual $workflowText -Pattern 'cron:' -Message 'Update workflow should not run on an automatic schedule.'
 
 Write-Host 'Master repo tests passed.'

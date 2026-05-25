@@ -75,7 +75,7 @@ function Read-GitHubTextFile {
 function Get-ProjectVersion {
     param([Parameter(Mandatory = $true)][string] $ProjectXml)
 
-    [xml] $project = $ProjectXml
+    [xml] $project = $ProjectXml.TrimStart([char] 0xFEFF)
     $version = $project.Project.PropertyGroup |
         ForEach-Object { $_.Version } |
         Where-Object { -not [string]::IsNullOrWhiteSpace([string] $_) } |
@@ -195,10 +195,17 @@ function New-StoreEntry {
         '0'
     }
 
+    $internalName = if ([string]::IsNullOrWhiteSpace([string] $manifest.InternalName)) {
+        [string] $Plugin.InternalName
+    }
+    else {
+        [string] $manifest.InternalName
+    }
+
     [ordered]@{
         Author = $manifest.Author
         Name = $manifest.Name
-        InternalName = $manifest.InternalName
+        InternalName = $internalName
         AssemblyVersion = $version
         TestingAssemblyVersion = $null
         Description = $manifest.Description
@@ -222,7 +229,8 @@ if (-not (Test-Path $ConfigPath)) {
     Fail "Missing config file: $ConfigPath"
 }
 
-$plugins = @(Get-Content -Raw $ConfigPath | ConvertFrom-Json)
+$pluginJson = Get-Content -Raw $ConfigPath | ConvertFrom-Json
+$plugins = @($pluginJson)
 if ($plugins.Count -eq 0) {
     Fail 'Plugin config is empty.'
 }

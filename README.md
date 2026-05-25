@@ -10,6 +10,7 @@ https://raw.githubusercontent.com/bloooowfish/MyPluginMaster/refs/heads/main/rep
 
 ## Included Plugins
 
+- Bazooka Lens
 - Where Is My Head
 
 Entries are generated from `plugins.json`. A plugin is hidden when its configured release asset is not available yet.
@@ -19,4 +20,10 @@ Entries are generated from `plugins.json`. A plugin is hidden when its configure
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\Build-MasterRepo.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\tests\MasterRepo.Tests.ps1
+```
+
+For the normal manual flow after releasing a plugin:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\Update-MasterRepo.ps1 -Commit -Push
 ```
