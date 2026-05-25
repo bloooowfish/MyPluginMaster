@@ -72,6 +72,161 @@ function Read-GitHubTextFile {
     [System.Text.Encoding]::UTF8.GetString($bytes)
 }
 
+function Normalize-RepositoryPath {
+    param([AllowEmptyString()][string] $Path)
+
+    ($Path -replace '\\', '/').Trim('/')
+}
+
+function Get-RepositoryPathDirectory {
+    param([Parameter(Mandatory = $true)][string] $Path)
+
+    $normalized = Normalize-RepositoryPath -Path $Path
+    $lastSlash = $normalized.LastIndexOf('/')
+    if ($lastSlash -lt 0) {
+        return ''
+    }
+
+    $normalized.Substring(0, $lastSlash)
+}
+
+function Join-RepositoryPath {
+    param(
+        [Parameter(Mandatory = $true)][string] $Directory,
+        [Parameter(Mandatory = $true)][string] $Name
+    )
+
+    $normalizedDirectory = Normalize-RepositoryPath -Path $Directory
+    if ([string]::IsNullOrWhiteSpace($normalizedDirectory)) {
+        return $Name
+    }
+
+    "$normalizedDirectory/$Name"
+}
+
+function Get-RepositoryTree {
+    param(
+        [Parameter(Mandatory = $true)][string] $Repository,
+        [Parameter(Mandatory = $true)][string] $Ref
+    )
+
+    $tree = Invoke-GitHubApi -Path "repos/$Repository/git/trees/$Ref`?recursive=1"
+    if ([bool] $tree.truncated) {
+        Fail "Repository tree is truncated for $Repository@$Ref. Add explicit ProjectPath and ManifestPath overrides."
+    }
+
+    @($tree.tree) | Where-Object { [string] $_.type -eq 'blob' }
+}
+
+function Get-PluginRepository {
+    param([Parameter(Mandatory = $true)][object] $Plugin)
+
+    if ($Plugin -is [string]) {
+        return [string] $Plugin
+    }
+
+    [string] $Plugin.Repository
+}
+
+function Get-PluginOverride {
+    param(
+        [Parameter(Mandatory = $true)][object] $Plugin,
+        [Parameter(Mandatory = $true)][string] $Name
+    )
+
+    if ($Plugin -is [string]) {
+        return ''
+    }
+
+    $property = $Plugin.PSObject.Properties[$Name]
+    if ($null -eq $property -or $null -eq $property.Value) {
+        return ''
+    }
+
+    [string] $property.Value
+}
+
+function Assert-TreePath {
+    param(
+        [Parameter(Mandatory = $true)][object[]] $Tree,
+        [Parameter(Mandatory = $true)][string] $Repository,
+        [Parameter(Mandatory = $true)][string] $Path
+    )
+
+    $normalizedPath = Normalize-RepositoryPath -Path $Path
+    $matched = @($Tree | Where-Object { [string] $_.path -eq $normalizedPath }).Count -gt 0
+    if (-not $matched) {
+        Fail "Repository $Repository does not contain expected path: $normalizedPath"
+    }
+}
+
+function Resolve-PluginDescriptor {
+    param(
+        [Parameter(Mandatory = $true)][object] $Plugin,
+        [Parameter(Mandatory = $true)][string] $Ref
+    )
+
+    $repository = Get-PluginRepository -Plugin $Plugin
+    if ([string]::IsNullOrWhiteSpace($repository)) {
+        Fail 'Plugin config entry should be a repository string or define Repository.'
+    }
+
+    $tree = @(Get-RepositoryTree -Repository $repository -Ref $Ref)
+    $projectPath = Normalize-RepositoryPath -Path (Get-PluginOverride -Plugin $Plugin -Name 'ProjectPath')
+    $manifestPath = Normalize-RepositoryPath -Path (Get-PluginOverride -Plugin $Plugin -Name 'ManifestPath')
+
+    if (-not [string]::IsNullOrWhiteSpace($projectPath)) {
+        Assert-TreePath -Tree $tree -Repository $repository -Path $projectPath
+    }
+    else {
+        $paths = @($tree | ForEach-Object { [string] $_.path })
+        $candidates = @()
+        foreach ($path in $paths) {
+            if (-not $path.EndsWith('.csproj', [StringComparison]::OrdinalIgnoreCase)) {
+                continue
+            }
+
+            $directory = Get-RepositoryPathDirectory -Path $path
+            $projectName = [System.IO.Path]::GetFileNameWithoutExtension($path)
+            $candidateManifestPath = Join-RepositoryPath -Directory $directory -Name "$projectName.json"
+            if ($paths -contains $candidateManifestPath) {
+                $candidates += [PSCustomObject]@{
+                    ProjectPath = $path
+                    ManifestPath = $candidateManifestPath
+                }
+            }
+        }
+
+        if ($candidates.Count -eq 0) {
+            Fail "Could not discover plugin project for $repository. Expected a .csproj with a same-directory, same-name .json manifest."
+        }
+
+        if ($candidates.Count -gt 1) {
+            $candidateList = ($candidates | ForEach-Object { $_.ProjectPath }) -join ', '
+            Fail "Multiple plugin project candidates found for $repository`: $candidateList. Add explicit ProjectPath and ManifestPath overrides."
+        }
+
+        $projectPath = [string] $candidates[0].ProjectPath
+        if ([string]::IsNullOrWhiteSpace($manifestPath)) {
+            $manifestPath = [string] $candidates[0].ManifestPath
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($manifestPath)) {
+        $projectDirectory = Get-RepositoryPathDirectory -Path $projectPath
+        $projectName = [System.IO.Path]::GetFileNameWithoutExtension($projectPath)
+        $manifestPath = Join-RepositoryPath -Directory $projectDirectory -Name "$projectName.json"
+    }
+
+    Assert-TreePath -Tree $tree -Repository $repository -Path $manifestPath
+
+    [PSCustomObject]@{
+        Repository = $repository
+        ProjectPath = $projectPath
+        ManifestPath = $manifestPath
+    }
+}
+
 function Get-ProjectVersion {
     param([Parameter(Mandatory = $true)][string] $ProjectXml)
 
@@ -166,13 +321,29 @@ function ConvertTo-BooleanOrDefault {
 function New-StoreEntry {
     param([Parameter(Mandatory = $true)][object] $Plugin)
 
-    $repository = [string] $Plugin.Repository
-    $manifestText = Read-GitHubTextFile -Repository $repository -Path ([string] $Plugin.ManifestPath) -Ref $DefaultBranch
-    $projectText = Read-GitHubTextFile -Repository $repository -Path ([string] $Plugin.ProjectPath) -Ref $DefaultBranch
+    $descriptor = Resolve-PluginDescriptor -Plugin $Plugin -Ref $DefaultBranch
+    $repository = [string] $descriptor.Repository
+    $manifestText = Read-GitHubTextFile -Repository $repository -Path ([string] $descriptor.ManifestPath) -Ref $DefaultBranch
+    $projectText = Read-GitHubTextFile -Repository $repository -Path ([string] $descriptor.ProjectPath) -Ref $DefaultBranch
     $manifest = $manifestText | ConvertFrom-Json
     $version = Get-ProjectVersion -ProjectXml $projectText
     $tagName = "v$version"
-    $assetName = ([string] $Plugin.AssetName).Replace('{version}', $version)
+    $internalName = if (-not [string]::IsNullOrWhiteSpace((Get-PluginOverride -Plugin $Plugin -Name 'InternalName'))) {
+        Get-PluginOverride -Plugin $Plugin -Name 'InternalName'
+    }
+    elseif (-not [string]::IsNullOrWhiteSpace([string] $manifest.InternalName)) {
+        [string] $manifest.InternalName
+    }
+    else {
+        [System.IO.Path]::GetFileNameWithoutExtension([string] $descriptor.ProjectPath)
+    }
+
+    $assetNameTemplate = Get-PluginOverride -Plugin $Plugin -Name 'AssetName'
+    if ([string]::IsNullOrWhiteSpace($assetNameTemplate)) {
+        $assetNameTemplate = "$internalName-{version}.zip"
+    }
+
+    $assetName = $assetNameTemplate.Replace('{version}', $version)
     $releaseAsset = Find-ReleaseAsset -Repository $repository -TagName $tagName -AssetName $assetName
     $releaseMissing = $null -eq $releaseAsset.Release -or $null -eq $releaseAsset.Asset
 
@@ -185,21 +356,26 @@ function New-StoreEntry {
         Write-Warning "$message Entry will be hidden."
     }
 
-    $hideWhenReleaseMissing = ConvertTo-BooleanOrDefault -Value $Plugin.HideWhenReleaseMissing -Default $true
-    $isHide = ConvertTo-BooleanOrDefault -Value $Plugin.IsHide -Default ($hideWhenReleaseMissing -and $releaseMissing)
+    $hideWhenReleaseMissingOverride = Get-PluginOverride -Plugin $Plugin -Name 'HideWhenReleaseMissing'
+    $isHideOverride = Get-PluginOverride -Plugin $Plugin -Name 'IsHide'
+    $hideWhenReleaseMissing = if ([string]::IsNullOrWhiteSpace($hideWhenReleaseMissingOverride)) {
+        $true
+    }
+    else {
+        [bool]::Parse($hideWhenReleaseMissingOverride)
+    }
+    $isHide = if ([string]::IsNullOrWhiteSpace($isHideOverride)) {
+        $hideWhenReleaseMissing -and $releaseMissing
+    }
+    else {
+        [bool]::Parse($isHideOverride)
+    }
     $downloadUrl = "https://github.com/$repository/releases/download/$tagName/$assetName"
     $lastUpdate = if ($null -ne $releaseAsset.Release -and -not [string]::IsNullOrWhiteSpace([string] $releaseAsset.Release.published_at)) {
         Get-UnixTimeSeconds -Value ([DateTimeOffset]::Parse([string] $releaseAsset.Release.published_at))
     }
     else {
         '0'
-    }
-
-    $internalName = if ([string]::IsNullOrWhiteSpace([string] $manifest.InternalName)) {
-        [string] $Plugin.InternalName
-    }
-    else {
-        [string] $manifest.InternalName
     }
 
     [ordered]@{
@@ -236,19 +412,25 @@ if ($plugins.Count -eq 0) {
 }
 
 $entries = @()
-$seen = @{}
+$seenRepositories = @{}
+$seenInternalNames = @{}
 foreach ($plugin in $plugins) {
-    $internalName = [string] $plugin.InternalName
-    if ([string]::IsNullOrWhiteSpace($internalName)) {
-        Fail 'Plugin config entry is missing InternalName.'
+    $repository = Get-PluginRepository -Plugin $plugin
+    if ([string]::IsNullOrWhiteSpace($repository)) {
+        Fail 'Plugin config entry should be a repository string or define Repository.'
     }
 
-    if ($seen.ContainsKey($internalName)) {
-        Fail "Duplicate plugin InternalName: $internalName"
+    if ($seenRepositories.ContainsKey($repository)) {
+        Fail "Duplicate plugin repository: $repository"
     }
 
-    $seen[$internalName] = $true
+    $seenRepositories[$repository] = $true
     $entry = New-StoreEntry -Plugin $plugin
+    if ($seenInternalNames.ContainsKey([string] $entry.InternalName)) {
+        Fail "Duplicate plugin InternalName: $($entry.InternalName)"
+    }
+
+    $seenInternalNames[[string] $entry.InternalName] = $true
     $entries += $entry
 }
 

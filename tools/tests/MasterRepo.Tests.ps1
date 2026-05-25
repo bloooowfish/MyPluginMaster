@@ -68,20 +68,40 @@ Assert-NotMatch -Actual $configText -Pattern 'https://github\.com/' -Message 'Pl
 $pluginJson = Get-Content -Raw $configPath | ConvertFrom-Json
 $plugins = @($pluginJson)
 Assert-True -Condition ($plugins.Count -ge 1) -Message 'Plugin config should contain at least one plugin.'
-$hasBazookaLens = @($plugins | Where-Object { [string] $_.InternalName -eq 'BazookaLens' }).Count -eq 1
-$hasWhereIsMyHead = @($plugins | Where-Object { [string] $_.InternalName -eq 'WhereIsMyHead' }).Count -eq 1
+$repositories = @($plugins | ForEach-Object {
+    if ($_ -is [string]) {
+        [string] $_
+    }
+    else {
+        [string] $_.Repository
+    }
+})
+$hasBazookaLens = @($repositories | Where-Object { $_ -eq 'bloooowfish/BazookaLens' }).Count -eq 1
+$hasWhereIsMyHead = @($repositories | Where-Object { $_ -eq 'bloooowfish/Where-Is-My-Head-Plugin' }).Count -eq 1
 Assert-True -Condition $hasBazookaLens -Message 'Plugin config should include BazookaLens.'
 Assert-True -Condition $hasWhereIsMyHead -Message 'Plugin config should include WhereIsMyHead.'
 
 $seen = @{}
 foreach ($plugin in $plugins) {
-    foreach ($property in @('InternalName', 'Repository', 'ManifestPath', 'ProjectPath', 'AssetName')) {
-        Assert-True -Condition (-not [string]::IsNullOrWhiteSpace([string] $plugin.$property)) -Message "Plugin entry should define $property."
+    $repository = if ($plugin -is [string]) {
+        [string] $plugin
+    }
+    else {
+        [string] $plugin.Repository
     }
 
-    Assert-Match -Actual ([string] $plugin.Repository) -Pattern '^bloooowfish/[A-Za-z0-9_.-]+$' -Message 'Plugin repository should target the subaccount owner.'
-    Assert-True -Condition (-not $seen.ContainsKey([string] $plugin.InternalName)) -Message "Duplicate InternalName in plugins.json: $($plugin.InternalName)"
-    $seen[[string] $plugin.InternalName] = $true
+    Assert-True -Condition (-not [string]::IsNullOrWhiteSpace($repository)) -Message 'Plugin entry should define Repository or be a repository string.'
+    Assert-Match -Actual $repository -Pattern '^bloooowfish/[A-Za-z0-9_.-]+$' -Message 'Plugin repository should target the subaccount owner.'
+    Assert-True -Condition (-not $seen.ContainsKey($repository)) -Message "Duplicate repository in plugins.json: $repository"
+    $seen[$repository] = $true
+
+    if ($plugin -isnot [string]) {
+        foreach ($property in @('ProjectPath', 'ManifestPath', 'AssetName', 'InternalName')) {
+            if (-not [string]::IsNullOrWhiteSpace([string] $plugin.$property)) {
+                Assert-NotMatch -Actual ([string] $plugin.$property) -Pattern '[A-Za-z]:\\' -Message "$property override should not use local absolute paths."
+            }
+        }
+    }
 }
 
 $repoJsonText = Get-Content -Raw $repoJsonPath
@@ -105,6 +125,9 @@ $buildScriptText = Get-Content -Raw $buildScriptPath
 Assert-Match -Actual $buildScriptText -Pattern 'ConvertTo-Json\s+-InputObject\s+\$entries' -Message 'Build script should preserve repo.json as an array.'
 Assert-Match -Actual $buildScriptText -Pattern 'HideWhenReleaseMissing' -Message 'Build script should hide unreleased plugins by default.'
 Assert-Match -Actual $buildScriptText -Pattern 'download_count' -Message 'Build script should read GitHub release asset download counts.'
+Assert-Match -Actual $buildScriptText -Pattern 'Get-RepositoryTree' -Message 'Build script should discover plugin project and manifest paths from the repository tree.'
+Assert-Match -Actual $buildScriptText -Pattern 'Resolve-PluginDescriptor' -Message 'Build script should support repository-string plugin entries through convention-based discovery.'
+Assert-Match -Actual $buildScriptText -Pattern '\{version\}' -Message 'Build script should still support asset name overrides.'
 Assert-Match -Actual $buildScriptText -Pattern '\$null -eq \$releasePage' -Message 'Build script should stop download-count pagination on empty release pages.'
 Assert-NotMatch -Actual $buildScriptText -Pattern 'UtcNow' -Message 'Build script should not churn LastUpdate for unreleased hidden entries.'
 Assert-NotMatch -Actual $buildScriptText -Pattern '@\(\$entries\)\s*\|\s*ConvertTo-Json' -Message 'Build script should not pipe repo entries into ConvertTo-Json.'
@@ -115,6 +138,7 @@ Assert-Match -Actual $updateScriptText -Pattern 'MasterRepo\.Tests\.ps1' -Messag
 Assert-Match -Actual $updateScriptText -Pattern 'Verify-RepoIdentity\.ps1' -Message 'Manual update script should verify subaccount identity before git operations.'
 Assert-Match -Actual $updateScriptText -Pattern '\[switch\]\s*\$Commit' -Message 'Manual update script should make committing explicit.'
 Assert-Match -Actual $updateScriptText -Pattern '\[switch\]\s*\$Push' -Message 'Manual update script should make pushing explicit.'
+Assert-Match -Actual $updateScriptText -Pattern 'git status --short -- repo\.json' -Message 'Manual update script should commit only generated repo.json changes.'
 
 $readmeText = Get-Content -Raw $readmePath
 Assert-Match -Actual $readmeText -Pattern 'raw\.githubusercontent\.com/bloooowfish/MyPluginMaster/refs/heads/main/repo\.json' -Message 'README should publish the cache-resistant master repository URL.'
@@ -123,6 +147,8 @@ Assert-Match -Actual $readmeText -Pattern 'Update-MasterRepo\.ps1' -Message 'REA
 $workflowPath = Join-Path $repoRoot '.github\workflows\update-repo.yml'
 $workflowText = Get-Content -Raw $workflowPath
 Assert-Match -Actual $workflowText -Pattern 'workflow_dispatch' -Message 'Update workflow should be manually triggerable.'
+Assert-Match -Actual $workflowText -Pattern 'repository_dispatch' -Message 'Update workflow should be triggerable by plugin release dispatch events.'
+Assert-Match -Actual $workflowText -Pattern 'plugin-release' -Message 'Update workflow should restrict repository_dispatch to plugin release events.'
 Assert-NotMatch -Actual $workflowText -Pattern 'schedule:' -Message 'Update workflow should not run on an automatic schedule.'
 Assert-NotMatch -Actual $workflowText -Pattern 'cron:' -Message 'Update workflow should not run on an automatic schedule.'
 

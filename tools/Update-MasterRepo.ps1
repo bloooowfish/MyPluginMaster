@@ -38,7 +38,7 @@ Invoke-Checked -FilePath 'powershell' -Arguments @('-NoProfile', '-ExecutionPoli
 Invoke-Checked -FilePath 'powershell' -Arguments @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $buildScript)
 Invoke-Checked -FilePath 'powershell' -Arguments @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $testScript)
 
-$status = (& git status --short | Out-String).Trim()
+$status = (& git status --short -- repo.json | Out-String).Trim()
 if ([string]::IsNullOrWhiteSpace($status)) {
     Write-Host 'Master repository is already up to date.'
     return

@@ -2,6 +2,9 @@ name: Update Plugin Repository
 
 on:
   workflow_dispatch:
+  repository_dispatch:
+    types:
+      - plugin-release
 
 permissions:
   contents: write

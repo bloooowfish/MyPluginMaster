@@ -1,18 +1,4 @@
 [
-  {
-    "InternalName": "BazookaLens",
-    "Repository": "bloooowfish/BazookaLens",
-    "ManifestPath": "BazookaLens/BazookaLens.json",
-    "ProjectPath": "BazookaLens/BazookaLens.csproj",
-    "AssetName": "BazookaLens-{version}.zip",
-    "HideWhenReleaseMissing": true
-  },
-  {
-    "InternalName": "WhereIsMyHead",
-    "Repository": "bloooowfish/Where-Is-My-Head-Plugin",
-    "ManifestPath": "WhereIsMyHead/WhereIsMyHead.json",
-    "ProjectPath": "WhereIsMyHead/WhereIsMyHead.csproj",
-    "AssetName": "WhereIsMyHead-{version}.zip",
-    "HideWhenReleaseMissing": true
-  }
+  "bloooowfish/BazookaLens",
+  "bloooowfish/Where-Is-My-Head-Plugin"
 ]
