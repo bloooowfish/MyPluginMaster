@@ -18,17 +18,17 @@
         "TestingDalamudApiLevel":  null,
         "IsHide":  false,
         "IsTestingExclusive":  false,
-        "DownloadCount":  2,
+        "DownloadCount":  3,
         "DownloadLinkInstall":  "https://github.com/bloooowfish/BazookaLens/releases/download/v7.5.0.0/BazookaLens-7.5.0.0.zip",
         "DownloadLinkTesting":  null,
         "DownloadLinkUpdate":  "https://github.com/bloooowfish/BazookaLens/releases/download/v7.5.0.0/BazookaLens-7.5.0.0.zip",
         "LastUpdate":  "1779639492"
     },
     {
-        "Author":  "BlowFish",
+        "Author":  "bloooowfish",
         "Name":  "Where Is My Head",
         "InternalName":  "WhereIsMyHead",
-        "AssemblyVersion":  "0.1.0.0",
+        "AssemblyVersion":  "7.5.0.0",
         "TestingAssemblyVersion":  null,
         "Description":  "It help you save on electricity bills by blocking 3D rendering.",
         "Punchline":  "Control internal render policy from Dalamud.",
@@ -40,12 +40,12 @@
         "RepoUrl":  "https://github.com/bloooowfish/Where-Is-My-Head-Plugin",
         "DalamudApiLevel":  15,
         "TestingDalamudApiLevel":  null,
-        "IsHide":  true,
+        "IsHide":  false,
         "IsTestingExclusive":  false,
         "DownloadCount":  0,
-        "DownloadLinkInstall":  "https://github.com/bloooowfish/Where-Is-My-Head-Plugin/releases/download/v0.1.0.0/WhereIsMyHead-0.1.0.0.zip",
+        "DownloadLinkInstall":  "https://github.com/bloooowfish/Where-Is-My-Head-Plugin/releases/download/v7.5.0.0/WhereIsMyHead-7.5.0.0.zip",
         "DownloadLinkTesting":  null,
-        "DownloadLinkUpdate":  "https://github.com/bloooowfish/Where-Is-My-Head-Plugin/releases/download/v0.1.0.0/WhereIsMyHead-0.1.0.0.zip",
-        "LastUpdate":  "0"
+        "DownloadLinkUpdate":  "https://github.com/bloooowfish/Where-Is-My-Head-Plugin/releases/download/v7.5.0.0/WhereIsMyHead-7.5.0.0.zip",
+        "LastUpdate":  "1779690806"
     }
 ]
