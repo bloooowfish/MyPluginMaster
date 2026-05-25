@@ -2,6 +2,8 @@
 
 Custom Dalamud repository for bloooowfish plugins.
 
+This repository owns the final `repo.json`. Individual plugin repositories publish release assets and version metadata only.
+
 ## Custom Repository URL
 
 ```text
