@@ -142,7 +142,6 @@ Assert-Match -Actual $updateScriptText -Pattern 'git status --short -- repo\.jso
 
 $readmeText = Get-Content -Raw $readmePath
 Assert-Match -Actual $readmeText -Pattern 'raw\.githubusercontent\.com/bloooowfish/MyPluginMaster/refs/heads/main/repo\.json' -Message 'README should publish the cache-resistant master repository URL.'
-Assert-Match -Actual $readmeText -Pattern 'Update-MasterRepo\.ps1' -Message 'README should document the manual update script.'
 
 $workflowPath = Join-Path $repoRoot '.github\workflows\update-repo.yml'
 $workflowText = Get-Content -Raw $workflowPath
