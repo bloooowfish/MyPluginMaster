@@ -3,7 +3,7 @@
         "Author":  "bloooowfish",
         "Name":  "Bazooka Lens",
         "InternalName":  "BazookaLens",
-        "AssemblyVersion":  "7.5.2.0",
+        "AssemblyVersion":  "7.5.2.1",
         "TestingAssemblyVersion":  null,
         "Description":  "Adds /blens commands and a settings window for scaled full-frame or region screenshots, UI hide/restore, custom save paths, keyboard shortcuts, and ReShade post-effects capture when available.",
         "Punchline":  "Native high-resolution screenshots with region, hotkey, and ReShade post-effects support.",
@@ -18,11 +18,11 @@
         "TestingDalamudApiLevel":  null,
         "IsHide":  false,
         "IsTestingExclusive":  false,
-        "DownloadCount":  8,
-        "DownloadLinkInstall":  "https://github.com/bloooowfish/BazookaLens/releases/download/v7.5.2.0/BazookaLens-7.5.2.0.zip",
+        "DownloadCount":  9,
+        "DownloadLinkInstall":  "https://github.com/bloooowfish/BazookaLens/releases/download/v7.5.2.1/BazookaLens-7.5.2.1.zip",
         "DownloadLinkTesting":  null,
-        "DownloadLinkUpdate":  "https://github.com/bloooowfish/BazookaLens/releases/download/v7.5.2.0/BazookaLens-7.5.2.0.zip",
-        "LastUpdate":  "1779823389"
+        "DownloadLinkUpdate":  "https://github.com/bloooowfish/BazookaLens/releases/download/v7.5.2.1/BazookaLens-7.5.2.1.zip",
+        "LastUpdate":  "1779900240"
     },
     {
         "Author":  "bloooowfish",
