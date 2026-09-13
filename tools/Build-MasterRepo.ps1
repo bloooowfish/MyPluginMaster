@@ -249,10 +249,10 @@ function Get-UnixTimeSeconds {
     [string] $Value.ToUnixTimeSeconds()
 }
 
-function Get-ZipDownloadCount {
+function Get-ReleaseInventory {
     param([Parameter(Mandatory = $true)][string] $Repository)
 
-    $total = 0
+    $releases = @()
     $page = 1
     while ($true) {
         $releasePage = Invoke-GitHubApi -Path "repos/$Repository/releases?per_page=100&page=$page"
@@ -260,48 +260,81 @@ function Get-ZipDownloadCount {
             break
         }
 
-        $releases = @($releasePage)
-        if ($releases.Count -eq 0) {
+        $currentPage = @($releasePage)
+        if ($currentPage.Count -eq 0) {
             break
         }
 
-        foreach ($release in $releases) {
-            foreach ($asset in @($release.assets)) {
-                if (([string] $asset.name) -like '*.zip') {
-                    $total += [int] $asset.download_count
-                }
-            }
-        }
+        $releases += $currentPage
 
-        if ($releases.Count -lt 100) {
+        if ($currentPage.Count -lt 100) {
             break
         }
 
         $page++
     }
 
-    $total
+    $releases
 }
 
-function Find-ReleaseAsset {
-    param(
-        [Parameter(Mandatory = $true)][string] $Repository,
-        [Parameter(Mandatory = $true)][string] $TagName,
-        [Parameter(Mandatory = $true)][string] $AssetName
-    )
+function Get-ZipDownloadCount {
+    param([Parameter(Mandatory = $true)][object[]] $Releases)
 
-    $release = Invoke-GitHubApiOrNull -Path "repos/$Repository/releases/tags/$TagName"
-    if ($null -eq $release) {
-        return [PSCustomObject]@{
-            Release = $null
-            Asset = $null
+    $total = 0
+    foreach ($release in $Releases) {
+        foreach ($asset in @($release.assets)) {
+            if (([string] $asset.name) -like '*.zip') {
+                $total += [int] $asset.download_count
+            }
         }
     }
 
-    $asset = @($release.assets) | Where-Object { [string] $_.name -eq $AssetName } | Select-Object -First 1
+    $total
+}
+
+function Get-AssetVersionPattern {
+    param([Parameter(Mandatory = $true)][string] $AssetNameTemplate)
+
+    if ($AssetNameTemplate.IndexOf('{version}', [StringComparison]::Ordinal) -lt 0) {
+        Fail "AssetName must contain {version}: $AssetNameTemplate"
+    }
+
+    $escapedTemplate = [regex]::Escape($AssetNameTemplate)
+    $escapedPlaceholder = [regex]::Escape('{version}')
+    "^$($escapedTemplate.Replace($escapedPlaceholder, '(?<version>\d+\.\d+\.\d+\.\d+)'))$"
+}
+
+function Find-LatestReleaseAsset {
+    param(
+        [Parameter(Mandatory = $true)][string] $Repository,
+        [Parameter(Mandatory = $true)][object[]] $Releases,
+        [Parameter(Mandatory = $true)][string] $AssetNameTemplate
+    )
+
+    $assetPattern = Get-AssetVersionPattern -AssetNameTemplate $AssetNameTemplate
+    $publishedStableReleases = @($Releases |
+        Where-Object { -not [bool] $_.draft -and -not [bool] $_.prerelease } |
+        Sort-Object -Descending { [DateTimeOffset]::Parse([string] $_.published_at) })
+
+    foreach ($release in $publishedStableReleases) {
+
+        foreach ($asset in @($release.assets)) {
+            $assetName = [string] $asset.name
+            $match = [regex]::Match($assetName, $assetPattern)
+            if ($match.Success) {
+                return [PSCustomObject]@{
+                    Release = $release
+                    Asset = $asset
+                    Version = [string] $match.Groups['version'].Value
+                }
+            }
+        }
+    }
+
     [PSCustomObject]@{
-        Release = $release
-        Asset = $asset
+        Release = $null
+        Asset = $null
+        Version = ''
     }
 }
 
@@ -319,15 +352,15 @@ function ConvertTo-BooleanOrDefault {
 }
 
 function New-StoreEntry {
-    param([Parameter(Mandatory = $true)][object] $Plugin)
+    param(
+        [Parameter(Mandatory = $true)][object] $Plugin,
+        [object] $ExistingEntry
+    )
 
     $descriptor = Resolve-PluginDescriptor -Plugin $Plugin -Ref $DefaultBranch
     $repository = [string] $descriptor.Repository
     $manifestText = Read-GitHubTextFile -Repository $repository -Path ([string] $descriptor.ManifestPath) -Ref $DefaultBranch
-    $projectText = Read-GitHubTextFile -Repository $repository -Path ([string] $descriptor.ProjectPath) -Ref $DefaultBranch
     $manifest = $manifestText | ConvertFrom-Json
-    $version = Get-ProjectVersion -ProjectXml $projectText
-    $tagName = "v$version"
     $internalName = if (-not [string]::IsNullOrWhiteSpace((Get-PluginOverride -Plugin $Plugin -Name 'InternalName'))) {
         Get-PluginOverride -Plugin $Plugin -Name 'InternalName'
     }
@@ -343,17 +376,34 @@ function New-StoreEntry {
         $assetNameTemplate = "$internalName-{version}.zip"
     }
 
-    $assetName = $assetNameTemplate.Replace('{version}', $version)
-    $releaseAsset = Find-ReleaseAsset -Repository $repository -TagName $tagName -AssetName $assetName
+    $releases = @(Get-ReleaseInventory -Repository $repository)
+    $releaseAsset = Find-LatestReleaseAsset -Repository $repository -Releases $releases -AssetNameTemplate $assetNameTemplate
     $releaseMissing = $null -eq $releaseAsset.Release -or $null -eq $releaseAsset.Asset
 
     if ($releaseMissing) {
-        $message = "Release asset missing for $repository $tagName/$assetName."
+        $message = "No published stable release asset matching $assetNameTemplate was found for $repository."
         if ($RequireReleaseAsset) {
             Fail $message
         }
 
+        if ($null -ne $ExistingEntry) {
+            Write-Warning "$message Preserving the existing repository entry."
+            return $ExistingEntry
+        }
+
         Write-Warning "$message Entry will be hidden."
+
+        $projectText = Read-GitHubTextFile -Repository $repository -Path ([string] $descriptor.ProjectPath) -Ref $DefaultBranch
+        $version = Get-ProjectVersion -ProjectXml $projectText
+        $tagName = "v$version"
+        $assetName = $assetNameTemplate.Replace('{version}', $version)
+    }
+    else {
+        $version = [string] $releaseAsset.Version
+        $tagName = [string] $releaseAsset.Release.tag_name
+        $assetName = [string] $releaseAsset.Asset.name
+        $manifestText = Read-GitHubTextFile -Repository $repository -Path ([string] $descriptor.ManifestPath) -Ref $tagName
+        $manifest = $manifestText | ConvertFrom-Json
     }
 
     $hideWhenReleaseMissingOverride = Get-PluginOverride -Plugin $Plugin -Name 'HideWhenReleaseMissing'
@@ -393,7 +443,7 @@ function New-StoreEntry {
         TestingDalamudApiLevel = $null
         IsHide = $isHide
         IsTestingExclusive = $false
-        DownloadCount = Get-ZipDownloadCount -Repository $repository
+        DownloadCount = Get-ZipDownloadCount -Releases $releases
         DownloadLinkInstall = $downloadUrl
         DownloadLinkTesting = $null
         DownloadLinkUpdate = $downloadUrl
@@ -411,6 +461,23 @@ if ($plugins.Count -eq 0) {
     Fail 'Plugin config is empty.'
 }
 
+$existingEntriesByRepository = @{}
+if (Test-Path $OutputPath) {
+    try {
+        $existingEntries = @(Get-Content -Raw $OutputPath | ConvertFrom-Json)
+        foreach ($existingEntry in $existingEntries) {
+            $repoUrl = [string] $existingEntry.RepoUrl
+            $match = [regex]::Match($repoUrl, '^https://github\.com/(?<repository>[^/]+/[^/]+)/?$')
+            if ($match.Success) {
+                $existingEntriesByRepository[$match.Groups['repository'].Value] = $existingEntry
+            }
+        }
+    }
+    catch {
+        Write-Warning "Could not read existing repository metadata for failure preservation: $($_.Exception.Message)"
+    }
+}
+
 $entries = @()
 $seenRepositories = @{}
 $seenInternalNames = @{}
@@ -425,7 +492,8 @@ foreach ($plugin in $plugins) {
     }
 
     $seenRepositories[$repository] = $true
-    $entry = New-StoreEntry -Plugin $plugin
+    $existingEntry = $existingEntriesByRepository[$repository]
+    $entry = New-StoreEntry -Plugin $plugin -ExistingEntry $existingEntry
     if ($seenInternalNames.ContainsKey([string] $entry.InternalName)) {
         Fail "Duplicate plugin InternalName: $($entry.InternalName)"
     }
