@@ -111,14 +111,30 @@ $entries = @($repoEntriesJson)
 Assert-True -Condition ($entries.Count -eq $plugins.Count) -Message 'repo.json should contain one entry for each configured plugin.'
 
 $entryNames = @{}
+# 이전 v 접두사 태그와 새 숫자 태그를 모두 허용하되 네 자리 버전/ZIP 조건은 유지한다.
+$releaseZipUrlPattern = '^https://github\.com/bloooowfish/[^/]+/releases/download/v?\d+\.\d+\.\d+\.\d+/[^/]+\.zip$'
+foreach ($validLink in @(
+    'https://github.com/bloooowfish/Where-Is-My-Head-Plugin/releases/download/v7.5.1.0/WhereIsMyHead-7.5.1.0.zip',
+    'https://github.com/bloooowfish/Where-Is-My-Head-Plugin/releases/download/7.5.2.0/WhereIsMyHead-7.5.2.0.zip'
+)) {
+    Assert-Match -Actual $validLink -Pattern $releaseZipUrlPattern -Message 'Legacy and numeric release tags should be accepted.'
+}
+foreach ($invalidLink in @(
+    'https://github.com/other/Plugin/releases/download/7.5.2.0/Plugin.zip',
+    'https://github.com/bloooowfish/Plugin/releases/download/latest/Plugin.zip',
+    'https://github.com/bloooowfish/Plugin/releases/download/7.5.2/Plugin.zip',
+    'https://github.com/bloooowfish/Plugin/releases/download/7.5.2.0/Plugin.exe'
+)) {
+    Assert-NotMatch -Actual $invalidLink -Pattern $releaseZipUrlPattern -Message 'Release link validation should retain owner, version, and ZIP restrictions.'
+}
 foreach ($entry in $entries) {
     Assert-True -Condition (-not [string]::IsNullOrWhiteSpace([string] $entry.InternalName)) -Message 'Each repo entry should have InternalName.'
     Assert-True -Condition (-not $entryNames.ContainsKey([string] $entry.InternalName)) -Message "Duplicate InternalName in repo.json: $($entry.InternalName)"
     $entryNames[[string] $entry.InternalName] = $true
     Assert-True -Condition ($null -ne $entry.IsHide) -Message 'Each repo entry should define IsHide.'
     Assert-True -Condition ($null -ne $entry.DownloadCount) -Message 'Each repo entry should define DownloadCount.'
-    Assert-Match -Actual ([string] $entry.DownloadLinkInstall) -Pattern '^https://github\.com/bloooowfish/.+/releases/download/v.+/.+\.zip$' -Message 'Install link should use a GitHub release zip.'
-    Assert-Match -Actual ([string] $entry.DownloadLinkUpdate) -Pattern '^https://github\.com/bloooowfish/.+/releases/download/v.+/.+\.zip$' -Message 'Update link should use a GitHub release zip.'
+    Assert-Match -Actual ([string] $entry.DownloadLinkInstall) -Pattern $releaseZipUrlPattern -Message 'Install link should use a GitHub release zip.'
+    Assert-Match -Actual ([string] $entry.DownloadLinkUpdate) -Pattern $releaseZipUrlPattern -Message 'Update link should use a GitHub release zip.'
 }
 
 $buildScriptText = Get-Content -Raw $buildScriptPath
