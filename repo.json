@@ -28,7 +28,7 @@
         "Author":  "bloooowfish",
         "Name":  "Where Is My Head",
         "InternalName":  "WhereIsMyHead",
-        "AssemblyVersion":  "7.5.2.0",
+        "AssemblyVersion":  "7.5.8.0",
         "TestingAssemblyVersion":  null,
         "Description":  "It help you save on electricity bills by blocking 3D rendering.",
         "Punchline":  "Control internal render policy from Dalamud.",
@@ -42,10 +42,10 @@
         "TestingDalamudApiLevel":  null,
         "IsHide":  false,
         "IsTestingExclusive":  false,
-        "DownloadCount":  117,
-        "DownloadLinkInstall":  "https://github.com/bloooowfish/Where-Is-My-Head-Plugin/releases/download/7.5.2.0/WhereIsMyHead-7.5.2.0.zip",
+        "DownloadCount":  118,
+        "DownloadLinkInstall":  "https://github.com/bloooowfish/Where-Is-My-Head-Plugin/releases/download/7.5.8.0/WhereIsMyHead-7.5.8.0.zip",
         "DownloadLinkTesting":  null,
-        "DownloadLinkUpdate":  "https://github.com/bloooowfish/Where-Is-My-Head-Plugin/releases/download/7.5.2.0/WhereIsMyHead-7.5.2.0.zip",
-        "LastUpdate":  "1793870069"
+        "DownloadLinkUpdate":  "https://github.com/bloooowfish/Where-Is-My-Head-Plugin/releases/download/7.5.8.0/WhereIsMyHead-7.5.8.0.zip",
+        "LastUpdate":  "1794323233"
     }
 ]
